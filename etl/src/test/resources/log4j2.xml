@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="off">
+	<Properties>
+		<Property name="LOG_PATTERN">%d{yyyyMMdd HH:mm:ss.SSS} [%thread] %-5level %logger{1.3.*} - [%method,%line] - %msg%n</Property>
+		<Property name="FILE_LOG_HOME">./logs</Property>
+		<Property name="FILE_LOG_MAX_FILE_SIZE">100MB</Property>
+		<Property name="FILE_LOG_MAX_HISTORY">20</Property>
+	</Properties>
+	<Appenders>
+		<Console name="Console" target="SYSTEM_OUT">
+			<PatternLayout pattern="${LOG_PATTERN}" />
+		</Console>
+		<RollingFile name="debugRollingFile" fileName="${FILE_LOG_HOME}/debug.log" filePattern="${FILE_LOG_HOME}/$${date:yyyyMM}/debug-%d{yyyyMMdd}-%i.log">
+			<ThresholdFilter level="INFO" onMatch="DENY" onMismatch="NEUTRAL"/>
+			<PatternLayout>
+				<Pattern>${LOG_PATTERN}</Pattern>
+			</PatternLayout>
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+				<SizeBasedTriggeringPolicy size="${FILE_LOG_MAX_FILE_SIZE}" />
+			</Policies>
+			<DefaultRolloverStrategy max="${FILE_LOG_MAX_HISTORY}" />
+		</RollingFile>
+		
+		<RollingFile name="infoRollingFile" fileName="${FILE_LOG_HOME}/info.log" filePattern="${FILE_LOG_HOME}/$${date:yyyyMM}/debug-%d{yyyyMMdd}-%i.log">
+			<ThresholdFilter level="warn" onMatch="DENY" onMismatch="NEUTRAL"/>
+			<PatternLayout>
+				<Pattern>${LOG_PATTERN}</Pattern>
+			</PatternLayout>
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+				<SizeBasedTriggeringPolicy size="${FILE_LOG_MAX_FILE_SIZE}" />
+			</Policies>
+			<DefaultRolloverStrategy max="${FILE_LOG_MAX_HISTORY}" />
+		</RollingFile>
+		
+		<RollingFile name="errorRollingFile" fileName="${FILE_LOG_HOME}/error.log" filePattern="${FILE_LOG_HOME}/$${date:yyyyMM}/debug-%d{yyyyMMdd}-%i.log">
+			<PatternLayout>
+				<Pattern>${LOG_PATTERN}</Pattern>
+			</PatternLayout>
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+				<SizeBasedTriggeringPolicy size="${FILE_LOG_MAX_FILE_SIZE}" />
+			</Policies>
+			<DefaultRolloverStrategy max="${FILE_LOG_MAX_HISTORY}" />
+		</RollingFile>
+		
+	</Appenders>
+	<Loggers>
+		<Root level="DEBUG">
+			<AppenderRef ref="Console" level="debug" />
+			<AppenderRef ref="debugRollingFile" level="debug" />
+			<AppenderRef ref="infoRollingFile" level="info" />
+			<AppenderRef ref="errorRollingFile" level="warn" />
+		</Root>
+	</Loggers>
+</Configuration>
