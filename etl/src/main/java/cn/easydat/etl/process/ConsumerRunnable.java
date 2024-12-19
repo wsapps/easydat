@@ -41,7 +41,8 @@ public class ConsumerRunnable implements Runnable {
 	
 	private int writerThreadNum;
 	private List<Connection> writerConns;
-	private List<PreparedStatement> writerPreparedStatements;
+	private String writeSql;
+//	private List<PreparedStatement> writerPreparedStatements;
 
 	private AtomicLong readerNum;
 	private AtomicLong writerMonitorNum;
@@ -52,7 +53,7 @@ public class ConsumerRunnable implements Runnable {
 		this.readerSql = readerSql;
 		this.threadNo = threadNo;
 		this.readerFinish = false;
-		this.writerThreadNum = 3;
+		this.writerThreadNum = 1;
 
 		this.dataQueue = new LinkedBlockingQueue<List<Object>>(parameter.getSetting().getMaxNumOfChannel());
 		this.readerNum = new AtomicLong(1);
@@ -143,17 +144,18 @@ public class ConsumerRunnable implements Runnable {
 	private void writerInit() {
 		JobParameterWriter writer = parameter.getWriter();
 		String fields = DBUtil.getFields(writer.getColumn());
-		String sql = String.format("INSERT INTO %s (%s) VALUES(%s)", writer.getTableName(), fields, values(writer.getColumn().length));
+		this.writeSql = String.format("INSERT INTO %s (%s) VALUES(%s)", writer.getTableName(), fields, values(writer.getColumn().length));
 		
 		writerConns = new ArrayList<Connection>(writerThreadNum);
-		writerPreparedStatements = new ArrayList<PreparedStatement>(writerThreadNum);
+//		writerPreparedStatements = new ArrayList<PreparedStatement>(writerThreadNum);
 
 		for (int i = 0; i < writerThreadNum; i++) {
 			try {
 				Connection writerConn = DBUtil.getConnection(writer.getJdbc());
-				PreparedStatement writerPreparedStatement = writerConn.prepareStatement(sql);
+				writerConn.setAutoCommit(false);
+//				PreparedStatement writerPreparedStatement = writerConn.prepareStatement(sql);
 				writerConns.add(writerConn);
-				writerPreparedStatements.add(writerPreparedStatement);
+//				writerPreparedStatements.add(writerPreparedStatement);
 			} catch (SQLException e) {
 				LOG.error("", e);
 			}
@@ -209,34 +211,46 @@ public class ConsumerRunnable implements Runnable {
 //		String fields = DBUtil.getFields(writer.getColumn());
 //		String sql = String.format("INSERT INTO %s (%s) VALUES(%s)", writer.getTableName(), fields, values(writer.getColumn().length));
 //		Connection writerConn = null;
+		PreparedStatement writerPreparedStatement = null;
 		try {
-//			writerConn = DBUtil.getConnection(writer.getJdbc());
-//			PreparedStatement writerPreparedStatement = writerConn.prepareStatement(sql);
+			Connection writerConn = writerConns.get(writerThreadNo);
+			writerPreparedStatement = writerConn.prepareStatement(this.writeSql);
 
-			for (List<Object> data : datas) {
+			
+			for (int j = 0; j < datas.size(); j++) {
+				List<Object> data = datas.get(j);
 				for (int i = 0; i < data.size(); i++) {
-					writerPreparedStatements.get(writerThreadNo).setObject(i + 1, data.get(i));
+					writerPreparedStatement.setObject(i + 1, data.get(i));
 				}
-				writerPreparedStatements.get(writerThreadNo).addBatch();
+				writerPreparedStatement.addBatch();
+				
+				if(j%1000==0) {
+					writerPreparedStatement.executeBatch();
+				}
 			}
 
-			writerPreparedStatements.get(writerThreadNo).executeBatch();
+			writerPreparedStatement.executeBatch();
+			writerConn.commit();
 
 			writerMonitorNum.addAndGet(datas.size());
 			
 //			LOG.info("writer ok, writerThreadNo:{}", writerThreadNo);
 		} catch (Exception e) {
 			LOG.error("threadNo:" + threadNo + ", writerThreadNo:" + writerThreadNo, e);
+		} finally {
+			if (null != writerPreparedStatement) {
+				try {
+					writerPreparedStatement.close();
+				} catch (SQLException e) {
+					LOG.error("threadNo:" + threadNo + ", writerThreadNo:" + writerThreadNo, e);
+				}
+			}
 		}
 	}
 	
 	private void close() {
 		for (int i = 0; i < writerThreadNum; i++) {
 			try {
-				if (null != writerPreparedStatements.get(i)) {
-					writerPreparedStatements.get(i).close();
-				}
-				
 				if (null != writerConns.get(i)) {
 					writerConns.get(i).close();
 				}

@@ -1,10 +1,7 @@
 package cn.easydat.etl;
 
-import java.io.FileInputStream;
 import java.util.List;
 
-import org.apache.logging.log4j.core.config.ConfigurationSource;
-import org.apache.logging.log4j.core.config.Configurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,16 +38,16 @@ public class Main {
 	private void init(JobParameter parameter) {
 //		String path = Main.class.getResource("").getPath();
 		//Configuration config = ConfigurationFactory.getInstance().getConfiguration(path);
-		String log4jxmlPath = Main.class.getClassLoader().getResource("log4j2.xml").getPath();
-		System.out.println("log4jxmlPath:" + log4jxmlPath);
-		ConfigurationSource source;
-		try {
-			source = new ConfigurationSource(new FileInputStream(log4jxmlPath));
-			Configurator.initialize(null, source);
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} 
+//		String log4jxmlPath = Main.class.getClassLoader().getResource("log4j2.xml").getPath();
+//		System.out.println("log4jxmlPath:" + log4jxmlPath);
+//		ConfigurationSource source;
+//		try {
+//			source = new ConfigurationSource(new FileInputStream(log4jxmlPath));
+//			Configurator.initialize(null, source);
+//		} catch (Exception e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		} 
 		
 		String readerDriver = parameter.getReader().getJdbc().getDriver();
 		String writerDriver = parameter.getWriter().getJdbc().getDriver();
