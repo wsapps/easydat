@@ -53,7 +53,7 @@ public class ConsumerRunnable implements Runnable {
 		this.readerSql = readerSql;
 		this.threadNo = threadNo;
 		this.readerFinish = false;
-		this.writerThreadNum = 1;
+		this.writerThreadNum = 2;
 
 		this.dataQueue = new LinkedBlockingQueue<List<Object>>(parameter.getSetting().getMaxNumOfChannel());
 		this.readerNum = new AtomicLong(1);

@@ -44,12 +44,17 @@ public class SplitTask {
 		List<String> sqls = null;
 		String pk = parameter.getReader().getSplitPk().getPkName();
 		String table = parameter.getReader().getTableName();
+		// String minMaxSql = String.format("SELECT min(%s) min, max(%s) max FROM %s",
+		// pk, pk, table);
+
 		String where = parameter.getReader().getWhere();
-		String minMaxSql = String.format("SELECT min(%s) min, max(%s) max FROM %s", pk, pk, table);
-//		if (null != where) {
-//			String whereSql = String.format(" WHERE %s", where);
-//			minMaxSql += whereSql;
-//		}
+		String whereSql = "";
+		if (null != where) {
+			whereSql = String.format(" WHERE %s ", where);
+		}
+
+		String minMaxSql = String.format("SELECT a.%s min,b.%s max from (SELECT %s FROM %s %s ORDER BY %s ASC LIMIT 1) a,(SELECT %s FROM %s %s ORDER BY %s DESC LIMIT 1) b", pk, pk, pk, table,
+				whereSql, pk, pk, table, whereSql, pk);
 
 		LOG.info("minMaxSql:" + minMaxSql);
 
