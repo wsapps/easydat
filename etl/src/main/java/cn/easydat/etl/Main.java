@@ -1,58 +1,67 @@
 package cn.easydat.etl;
 
-import java.util.List;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import cn.easydat.etl.entity.JobParameter;
-import cn.easydat.etl.process.ConsumerMain;
-import cn.easydat.etl.process.Preprocessing;
-import cn.easydat.etl.process.SplitTask;
+import cn.easydat.etl.process.JobContainer;
+import cn.easydat.etl.process.JobInfo;
+import cn.easydat.etl.process.consumer.Consumer;
+import cn.easydat.etl.process.monitor.Monitor;
+import cn.easydat.etl.process.pre.Preprocessing;
+import cn.easydat.etl.process.producer.Producer;
 import cn.easydat.etl.util.DBUtil;
 
 public class Main {
-	
+
 	private static final Logger LOG = LoggerFactory.getLogger(Main.class);
-	
+
 	public void startup(JobParameter parameter) {
-		init(parameter);
-		//split(parameter);
-		createProducer(parameter);
+		String jobNo = UUID.randomUUID().toString().replaceAll("-", "");
+
+		init(jobNo, parameter);
+
+		producer(jobNo);
+
+		startupMonitor(jobNo);
+		
+		pre(parameter);
+
+		createConsumer(jobNo);
 	}
 
-	private void createProducer(JobParameter parameter) {
-		// TODO Auto-generated method stub
-		SplitTask producer = new SplitTask();
-		List<String> readerSplitSqlList = producer.split(parameter);
-
-		LOG.info("readerSplitSize size:" + readerSplitSqlList.size());
-		
-		Preprocessing pre = new Preprocessing();
-		pre.startup(parameter);
-		
-		ConsumerMain consumerMain = new ConsumerMain(parameter, readerSplitSqlList);
-		consumerMain.startup();
-	}
-
-	private void init(JobParameter parameter) {
-//		String path = Main.class.getResource("").getPath();
-		//Configuration config = ConfigurationFactory.getInstance().getConfiguration(path);
-//		String log4jxmlPath = Main.class.getClassLoader().getResource("log4j2.xml").getPath();
-//		System.out.println("log4jxmlPath:" + log4jxmlPath);
-//		ConfigurationSource source;
-//		try {
-//			source = new ConfigurationSource(new FileInputStream(log4jxmlPath));
-//			Configurator.initialize(null, source);
-//		} catch (Exception e) {
-//			// TODO Auto-generated catch block
-//			e.printStackTrace();
-//		} 
-		
+	private void init(String jobNo, JobParameter parameter) {
 		String readerDriver = parameter.getReader().getJdbc().getDriver();
 		String writerDriver = parameter.getWriter().getJdbc().getDriver();
-		
+
 		DBUtil.loadDriverClass(readerDriver);
 		DBUtil.loadDriverClass(writerDriver);
+
+		JobContainer.JOB_MAP.put(jobNo, new JobInfo(parameter));
+
+		LOG.info("init finish.");
 	}
+
+	private void producer(String jobNo) {
+		Producer producer = new Producer(jobNo);
+		producer.startupAndAsynGen();
+	}
+
+	private void startupMonitor(String jobNo) {
+		Monitor monitor = new Monitor(jobNo);
+		monitor.startup();
+	}
+	
+	private void pre(JobParameter parameter) {
+		Preprocessing pre = new Preprocessing();
+		pre.startup(parameter);
+	}
+
+	private void createConsumer(String jobNo) {
+		Consumer consumer = new Consumer(jobNo);
+		consumer.startup();
+	}
+
 }

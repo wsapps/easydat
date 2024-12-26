@@ -1,4 +1,4 @@
-package cn.easydat.etl.process;
+package cn.easydat.etl.process.producer;
 
 import java.math.BigInteger;
 import java.sql.Connection;
@@ -50,7 +50,8 @@ public class SplitTask {
 		String where = parameter.getReader().getWhere();
 		String whereSql = "";
 		if (null != where) {
-			whereSql = String.format(" WHERE %s ", where);
+			//TODO
+//			whereSql = String.format(" WHERE %s ", where);
 		}
 
 		String minMaxSql = String.format("SELECT a.%s min,b.%s max from (SELECT %s FROM %s %s ORDER BY %s ASC LIMIT 1) a,(SELECT %s FROM %s %s ORDER BY %s DESC LIMIT 1) b", pk, pk, pk, table,
