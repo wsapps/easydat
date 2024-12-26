@@ -4,7 +4,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,30 +46,30 @@ public class WriterTask implements Runnable {
 
 	private void dataHandle() {
 		while (!jobInfo.isAllReaderFinish()) {
-			List<Object> data = jobInfo.dataQueuePollBlock();
+			Object[] data = jobInfo.dataQueueTake();
 			transformHandler(data);
 		}
 
-		List<Object> data = jobInfo.dataQueuePollBlock();
+		Object[] data = jobInfo.dataQueueTake();
 		transformHandler(data);
 
 		commitAndClose();
 	}
 
-	private List<Object> transformHandler(List<Object> data) {
+	private Object[] transformHandler(Object[] data) {
 		// TODO
 
 		writerHandler(data);
 		return data;
 	}
 
-	private void writerHandler(List<Object> data) {
+	private void writerHandler(Object[] data) {
 		this.writerNum++;
 		int batchSize = this.jobInfo.getParameter().getWriter().getBatchSize();
-		if (null != data && !data.isEmpty()) {
+		if (null != data && data.length > 0) {
 			try {
-				for (int i = 0; i < data.size(); i++) {
-					this.ps.setObject(i + 1, data.get(i));
+				for (int i = 0; i < data.length; i++) {
+					this.ps.setObject(i + 1, data[i]);
 				}
 
 				ps.addBatch();

@@ -89,25 +89,6 @@ public class SplitTask {
 		if (min.compareTo(max) == 0) {
 			result = new BigInteger[] { min, max };
 		} else {
-			// 每个任务最大行数为maxNumOfChannel / 5
-//			int maxNumOfChannel = setting.getMaxNumOfChannel() / 5;
-//			BigInteger range = max.subtract(min);
-//			int maxSize = range.divide(BigInteger.valueOf(maxNumOfChannel)).intValue()+1;
-//			List<BigInteger> list = new ArrayList<BigInteger>(maxSize);
-//			list.add(min);
-//			BigInteger num = min;
-//			
-//			while (num.compareTo(max) < 0) {
-//				num = num.add(BigInteger.valueOf(maxNumOfChannel));
-//				
-//				if (num.compareTo(max) > 0) {
-//					num = max;
-//				}
-//				
-//				list.add(num);
-//			}
-//			
-//			result = list.toArray(new BigInteger[] {});
 
 			int expectSliceNumber = setting.getChannel();
 			BigInteger endAndStartGap = max.subtract(min);

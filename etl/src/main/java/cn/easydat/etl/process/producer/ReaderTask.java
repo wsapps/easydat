@@ -2,8 +2,8 @@ package cn.easydat.etl.process.producer;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -17,16 +17,15 @@ import cn.easydat.etl.process.JobInfo;
 import cn.easydat.etl.util.DBUtil;
 
 public class ReaderTask implements Runnable {
-	
+
 	private static final Logger LOG = LoggerFactory.getLogger(ReaderTask.class);
 
-	private String jobNo;
-	private int threadNo;
-	private TaskInfo taskInfo;
-	
-	private JobInfo jobInfo;
-	private JobParameter parameter;
-	
+	private final String jobNo;
+	private final int threadNo;
+	private final TaskInfo taskInfo;
+
+	private final JobInfo jobInfo;
+	private final JobParameter parameter;
 
 	public ReaderTask(String jobNo, int threadNo, TaskInfo taskInfo) {
 		super();
@@ -35,7 +34,6 @@ public class ReaderTask implements Runnable {
 		this.taskInfo = taskInfo;
 		this.jobInfo = JobContainer.JOB_MAP.get(jobNo);
 		this.parameter = jobInfo.getParameter();
-		
 	}
 
 	@Override
@@ -43,38 +41,35 @@ public class ReaderTask implements Runnable {
 		Thread.currentThread().setName("ReaderTask-" + jobNo + "-" + threadNo);
 		readerHandler();
 	}
-	
-	private void readerHandler() {
-		
-		Connection readerConn = null;
-		Statement stmt = null;
-		ResultSet rs = null;
 
+	private void readerHandler() {
 		LOG.info("jobNo:{}, threadNo:{}, readerSql:{}", jobNo, threadNo, taskInfo.getSql());
 
-		try {
-			readerConn = DBUtil.getConnection(parameter.getReader().getJdbc());
-			stmt = readerConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-			stmt.setFetchSize(Integer.MIN_VALUE);
-			rs = stmt.executeQuery(taskInfo.getSql());
+		try (Connection readerConn = DBUtil.getConnection(parameter.getReader().getJdbc()); Statement stmt = createStatement(readerConn); ResultSet rs = stmt.executeQuery(taskInfo.getSql())) {
+
 			List<MetaData> metaDataList = this.jobInfo.getMetaDatas(rs);
+			int fieldSize = metaDataList.size();
 
 			while (rs.next()) {
-				int fieldSize = metaDataList.size();
-				List<Object> data = new ArrayList<Object>(fieldSize);
-				for (int i = 1; i <= fieldSize; i++) {
-					data.add(rs.getObject(i));
+				Object[] data = new Object[fieldSize];
+				for (int i = 0; i < fieldSize; i++) {
+					data[i] = rs.getObject(i + 1);
 				}
-				
-//				this.jobInfo.monitorReaderRowNumAdd(1);
-				jobInfo.dataQueueOffer(data);
+
+				jobInfo.dataQueuePut(data);
 			}
 
+		} catch (SQLException e) {
+			LOG.error("Database error while executing SQL [{}], jobNo: {}, threadNo: {}", taskInfo.getSql(), jobNo, threadNo, e);
 		} catch (Exception e) {
-			LOG.error("", e);
-		} finally {
-			DBUtil.closeDBResources(rs, stmt, readerConn);
+			LOG.error("Unexpected error while executing SQL [{}], jobNo: {}, threadNo: {}", taskInfo.getSql(), jobNo, threadNo, e);
 		}
+	}
+
+	private Statement createStatement(Connection conn) throws SQLException {
+		Statement stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+		stmt.setFetchSize(Integer.MIN_VALUE);
+		return stmt;
 	}
 
 }

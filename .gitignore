@@ -33,3 +33,5 @@ target
 .apt_generated_tests
 .idea
 .vscode
+
+mockdata/
