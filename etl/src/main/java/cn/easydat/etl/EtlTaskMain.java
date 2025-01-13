@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import cn.easydat.etl.entity.FinishInfo;
 import cn.easydat.etl.entity.JobParameter;
 import cn.easydat.etl.process.JobContainer;
 import cn.easydat.etl.process.JobInfo;
@@ -14,22 +15,26 @@ import cn.easydat.etl.process.pre.Preprocessing;
 import cn.easydat.etl.process.producer.Producer;
 import cn.easydat.etl.util.DBUtil;
 
-public class Main {
+public class EtlTaskMain {
 
-	private static final Logger LOG = LoggerFactory.getLogger(Main.class);
+	private static final Logger LOG = LoggerFactory.getLogger(EtlTaskMain.class);
 
-	public void startup(JobParameter parameter) {
-		String jobNo = UUID.randomUUID().toString().replaceAll("-", "");
+	public FinishInfo startup(JobParameter parameter) {
+		String jobNo = null != parameter.getJobNo() ? parameter.getJobNo() : UUID.randomUUID().toString().replaceAll("-", "");
 
 		init(jobNo, parameter);
 
 		producer(jobNo);
 
 		startupMonitor(jobNo);
-		
+
 		pre(parameter);
 
 		createConsumer(jobNo);
+
+		FinishInfo finishInfo = finish(jobNo);
+		
+		return finishInfo;
 	}
 
 	private void init(String jobNo, JobParameter parameter) {
@@ -53,7 +58,7 @@ public class Main {
 		Monitor monitor = new Monitor(jobNo);
 		monitor.startup();
 	}
-	
+
 	private void pre(JobParameter parameter) {
 		Preprocessing pre = new Preprocessing();
 		pre.startup(parameter);
@@ -62,6 +67,21 @@ public class Main {
 	private void createConsumer(String jobNo) {
 		Consumer consumer = new Consumer(jobNo);
 		consumer.startup();
+	}
+
+	private FinishInfo finish(String jobNo) {
+		JobInfo jobInfo = JobContainer.JOB_MAP.get(jobNo);
+		long endTime = System.currentTimeMillis();
+		long startTime = jobInfo.getMonitorStartTime();
+		long readerRowNum = jobInfo.monitorReaderRowNumGet();
+		long writerRowNum = jobInfo.monitorWriterRowNumGet();
+		long runtime = (endTime - startTime) / 1000;
+
+		FinishInfo finishInfo = new FinishInfo(jobNo, startTime, endTime, runtime, readerRowNum, writerRowNum);
+
+		JobContainer.JOB_MAP.remove(jobNo);
+		LOG.info("Finish,info:{}.", finishInfo);
+		return finishInfo;
 	}
 
 }

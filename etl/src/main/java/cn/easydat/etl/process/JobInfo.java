@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
@@ -38,6 +39,8 @@ public class JobInfo {
 	private AtomicLong monitorWriterRowNum;
 
 	private long monitorStartTime;
+	
+	private Map<String, List<String>> sqlsMap;
 
 	public JobInfo(JobParameter parameter) {
 		this.parameter = parameter;
@@ -87,11 +90,20 @@ public class JobInfo {
 	 * 向队列添加数据信息，队列大小达到Channel数阻塞
 	 */
 	public void dataQueuePut(Object[] data) {
-		try {
-			dataQueue.put(data);
-		} catch (InterruptedException e) {
-			LOG.error("dataQueuePut error", e);
-			Thread.currentThread().interrupt();
+		int i = 0;
+		boolean flag = false;
+		while (!flag) {
+			try {
+				flag = dataQueue.offer(data, 500, TimeUnit.MILLISECONDS);
+			} catch (InterruptedException e) {
+				LOG.error("dataQueuePut error", e);
+				Thread.currentThread().interrupt();
+			}
+			i++;
+			
+			if (i % 100 == 0) {
+				LOG.warn("dataQueuePut wait " + i);
+			}
 		}
 	}
 
@@ -101,7 +113,7 @@ public class JobInfo {
 	public Object[] dataQueueTake() {
 		Object[] data = null;
 		try {
-			data = dataQueue.take();
+			data = dataQueue.poll(500, TimeUnit.MILLISECONDS);
 		} catch (InterruptedException e) {
 			LOG.error("dataQueueTake error", e);
 			Thread.currentThread().interrupt();
@@ -195,6 +207,14 @@ public class JobInfo {
 			sb.append(",?");
 		}
 		return sb.toString();
+	}
+
+	public Map<String, List<String>> getSqlsMap() {
+		return sqlsMap;
+	}
+
+	public void setSqlsMap(Map<String, List<String>> sqlsMap) {
+		this.sqlsMap = sqlsMap;
 	}
 
 }

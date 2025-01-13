@@ -26,30 +26,31 @@ public class Consumer {
 
 	public void startup() {
 		JobInfo jobInfo = JobContainer.JOB_MAP.get(jobNo);
-		JobParameter parameter = jobInfo.getParameter();
-		int channel = parameter.getSetting().getChannel();
-		ExecutorService executorService = new ThreadPoolExecutor(channel, channel, 0, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<Runnable>(channel));
-
-		for (int i = 0; i < channel; i++) {
-			executorService.submit(new WriterTask(jobNo, i));
-		}
-
-		executorService.shutdown();
-
-		while (!executorService.isTerminated()) {
-			try {
-				executorService.awaitTermination(1, TimeUnit.SECONDS);
-			} catch (InterruptedException e) {
-				LOG.error("", e);
+		
+		// 读任务未完成或队列不为空
+		if(!jobInfo.isAllReaderFinish() || !jobInfo.dataQueueIsEmpty()) {
+			JobParameter parameter = jobInfo.getParameter();
+			int channel = parameter.getSetting().getChannel();
+			ExecutorService executorService = new ThreadPoolExecutor(channel, channel, 0, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<Runnable>(channel));
+			
+			LOG.info("startup channel:" + channel);
+			
+			for (int i = 0; i < channel; i++) {
+				executorService.submit(new WriterTask(jobNo, i));
 			}
+			
+			executorService.shutdown();
+			
+			while (!executorService.isTerminated()) {
+				try {
+					executorService.awaitTermination(1, TimeUnit.SECONDS);
+				} catch (InterruptedException e) {
+					LOG.error("", e);
+				}
+			}
+			
+			LOG.info("Reader finish, jobNo:" + jobNo);
 		}
-
-		JobContainer.JOB_MAP.remove(jobNo);
-
-		long endTime = System.currentTimeMillis();
-		long startTime = jobInfo.getMonitorStartTime();
-
-		LOG.info("Consumer Finish,jobNo:{},time(s):{}.", jobNo, (endTime - startTime) / 1000);
 	}
 
 }

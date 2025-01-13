@@ -71,6 +71,7 @@
 	<modules>
 		<module>export-data</module>
 		<module>etl</module>
+		<module>etl-job-simple</module>
 	</modules>
 
 	<build>

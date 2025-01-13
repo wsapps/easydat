@@ -15,9 +15,11 @@ public class Preprocessing {
 
 	public void startup(JobParameter parameter) {
 		try {
+			LOG.info("pre start");
 			Connection conn = DBUtil.getConnection(parameter.getWriter().getJdbc());
 			Statement stmt = conn.createStatement();
 			stmt.execute(parameter.getWriter().getPreSql());
+			LOG.info("pre end");
 		} catch (Exception e) {
 			LOG.error(parameter.getWriter().getPreSql(), e);
 		}

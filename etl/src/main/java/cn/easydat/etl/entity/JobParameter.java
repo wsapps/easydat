@@ -3,11 +3,14 @@ package cn.easydat.etl.entity;
 import cn.easydat.etl.entity.parameter.JobParameterReader;
 import cn.easydat.etl.entity.parameter.JobParameterSetting;
 import cn.easydat.etl.entity.parameter.JobParameterWriter;
+import cn.easydat.etl.process.monitor.CustomMonitor;
 
 public class JobParameter {
+	private String jobNo;
 	private JobParameterReader reader;
 	private JobParameterWriter writer;
 	private JobParameterSetting setting;
+	private CustomMonitor customMonitor;
 
 	public JobParameterReader getReader() {
 		return reader;
@@ -33,9 +36,25 @@ public class JobParameter {
 		this.setting = setting;
 	}
 
+	public String getJobNo() {
+		return jobNo;
+	}
+
+	public void setJobNo(String jobNo) {
+		this.jobNo = jobNo;
+	}
+
+	public CustomMonitor getCustomMonitor() {
+		return customMonitor;
+	}
+
+	public void setCustomMonitor(CustomMonitor customMonitor) {
+		this.customMonitor = customMonitor;
+	}
+
 	@Override
 	public String toString() {
-		return "JobParameter [reader=" + reader + ", writer=" + writer + ", setting=" + setting + "]";
+		return "JobParameter [jobNo=" + jobNo + ", reader=" + reader + ", writer=" + writer + ", setting=" + setting + "]";
 	}
 
 }

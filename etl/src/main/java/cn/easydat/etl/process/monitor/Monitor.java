@@ -3,6 +3,7 @@ package cn.easydat.etl.process.monitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import cn.easydat.etl.entity.MonitorInfo;
 import cn.easydat.etl.process.JobContainer;
 import cn.easydat.etl.process.JobInfo;
 
@@ -20,12 +21,13 @@ public class Monitor {
 	public void startup() {
 		Thread thread = new Thread(() -> {
 			JobInfo jobInfo = JobContainer.JOB_MAP.get(jobNo);
-			int sleepSecond = 10;
+			int sleepSecond = 15;
 
 			long monitorReaderRowNumLast = 0;
 			long monitorWriterRowNumLast = 0;
 
-			while (!jobInfo.isTaskQueueFinish()) {
+			// 读任务未完成或 读任务已完成且队列不为空
+			while (!jobInfo.isTaskQueueFinish() || (jobInfo.isAllReaderFinish() && !jobInfo.dataQueueIsEmpty())) {
 				long monitorReaderRowNum = jobInfo.monitorReaderRowNumGet();
 				long monitorWriterRowNum = jobInfo.monitorWriterRowNumGet();
 
@@ -37,6 +39,11 @@ public class Monitor {
 
 				LOG.info("平均读取行数:{},平均写入行数:{},读取总行数:{}, 写入总行数:{},QueueSize:{}", String.format("%.2f", readerRowNumPer), String.format("%.2f", writerRowNumPer), monitorReaderRowNum, monitorWriterRowNum,jobInfo.dataQueueSize());
 
+				if (null != jobInfo.getParameter().getCustomMonitor()) {
+					MonitorInfo monitorInfo = new MonitorInfo(jobNo, readerRowNumPer, writerRowNumPer, monitorReaderRowNum, monitorWriterRowNum, jobInfo.dataQueueSize());
+					jobInfo.getParameter().getCustomMonitor().monitor(monitorInfo);
+				}
+				
 				monitorReaderRowNumLast = monitorReaderRowNum;
 				monitorWriterRowNumLast = monitorWriterRowNum;
 

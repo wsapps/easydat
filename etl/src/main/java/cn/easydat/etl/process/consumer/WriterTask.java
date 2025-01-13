@@ -32,21 +32,25 @@ public class WriterTask implements Runnable {
 		this.jobNo = jobNo;
 		this.writerThreadNo = writerThreadNo;
 		this.jobInfo = JobContainer.JOB_MAP.get(jobNo);
-		this.writerNum = 0;
+		this.writerNum = 1;
 	}
 
 	@Override
 	public void run() {
-		Thread.currentThread().setName("WriterTask-" + jobNo + "-" + writerThreadNo);
-
+		Thread.currentThread().setName("WriterTask-" + jobNo);
+		
+		LOG.info("run init start " + writerThreadNo);
 		init();
-
+		LOG.info("run init end " + writerThreadNo);
+		
 		dataHandle();
 	}
 
 	private void dataHandle() {
-		while (!jobInfo.isAllReaderFinish()) {
+		// 读任务未完成或 读任务已完成且队列不为空
+		while (!jobInfo.isAllReaderFinish() || (jobInfo.isAllReaderFinish() && !jobInfo.dataQueueIsEmpty())) {
 			Object[] data = jobInfo.dataQueueTake();
+//			LOG.info("dataHandle " + data[0]);
 			transformHandler(data);
 		}
 
@@ -59,12 +63,11 @@ public class WriterTask implements Runnable {
 	private Object[] transformHandler(Object[] data) {
 		// TODO
 
-		writerHandler(data);
+		writerHandler(data, 0);
 		return data;
 	}
 
-	private void writerHandler(Object[] data) {
-		this.writerNum++;
+	private void writerHandler(Object[] data, int retryTimes) {
 		int batchSize = this.jobInfo.getParameter().getWriter().getBatchSize();
 		if (null != data && data.length > 0) {
 			try {
@@ -73,7 +76,6 @@ public class WriterTask implements Runnable {
 				}
 
 				ps.addBatch();
-				jobInfo.monitorWriterRowNumAdd(1);
 
 				if (this.writerNum % batchSize == 0) {
 					ps.executeBatch();
@@ -84,8 +86,16 @@ public class WriterTask implements Runnable {
 					this.conn.commit();
 				}
 
+				this.writerNum++;
+				jobInfo.monitorWriterRowNumAdd(1);
 			} catch (SQLException e) {
 				LOG.error(String.format("jobNo:{},writerThreadNo:{},taskId:{}", jobNo, writerThreadNo, taskInfo.getId()), e);
+				if (retryTimes < 9) {
+					retryTimes++;
+					writerHandler(data, retryTimes);
+				} else {
+					LOG.error("Exceeded the maximum number of retries.");
+				}
 			}
 		}
 	}

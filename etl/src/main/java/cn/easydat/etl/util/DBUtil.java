@@ -107,7 +107,7 @@ public class DBUtil {
 			Properties prop = new Properties();
 			prop.put("user", jobParameterJdbc.getUsername());
 			prop.put("password", jobParameterJdbc.getPassword());
-			
+
 			if (jobParameterJdbc.getDriver().contains("mysql")) {
 				prop.put("useCursorFetch", true);
 			}
@@ -117,7 +117,22 @@ public class DBUtil {
 			throw new RuntimeException(jobParameterJdbc.toString());
 		}
 	}
-	
+
+	public static Connection connect(String driver, String jdbcUrl, String username, String password) {
+		try {
+			Class.forName(driver);
+			DriverManager.setLoginTimeout(15);
+
+			Properties prop = new Properties();
+			prop.put("user", username);
+			prop.put("password", password);
+
+			return DriverManager.getConnection(jdbcUrl, prop);
+		} catch (Exception e) {
+			throw new RuntimeException(jdbcUrl);
+		}
+	}
+
 	public static String getFields(String[] columns) {
 		String fields = "";
 		for (int i = 0; i < columns.length - 1; i++) {
