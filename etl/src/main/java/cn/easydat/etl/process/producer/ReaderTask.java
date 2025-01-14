@@ -69,7 +69,7 @@ public class ReaderTask implements Runnable {
 
 				jobInfo.monitorReaderRowNumAdd(-1 * row);
 				row = 0;
-				deleteData();
+				deleteData(0);
 				readerHandler();
 			} else {
 				LOG.error("超过重试次数");
@@ -81,7 +81,7 @@ public class ReaderTask implements Runnable {
 
 				jobInfo.monitorReaderRowNumAdd(-1 * row);
 				row = 0;
-				deleteData();
+				deleteData(0);
 				readerHandler();
 			} else {
 				LOG.error("超过重试次数");
@@ -97,11 +97,17 @@ public class ReaderTask implements Runnable {
 		return stmt;
 	}
 
-	private void deleteData() {
+	private void deleteData(int retryTimes) {
 		try (Connection conn = DBUtil.getConnection(parameter.getWriter().getJdbc()); Statement stmt = conn.createStatement();) {
 			stmt.executeUpdate(taskInfo.getDeleteSql());
 		} catch (SQLException e) {
-			LOG.error("Database error while executing SQL [{}], jobNo: {}, threadNo: {}", taskInfo.getSql(), jobNo, threadNo, e);
+			LOG.error("Database error while executing SQL [{}], jobNo: {}, threadNo: {}, retryTimes: {}", taskInfo.getSql(), jobNo, threadNo, retryTimes, e);
+			if (retryTimes < 3) {
+				retryTimes++;
+				deleteData(retryTimes);
+			} else {
+				LOG.error("超过重试次数");
+			}
 		}
 	}
 

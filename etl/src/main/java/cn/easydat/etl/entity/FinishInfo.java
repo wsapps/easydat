@@ -7,8 +7,9 @@ public class FinishInfo {
 	private Long runtime;
 	private Long readerRowNum;
 	private Long writerRowNum;
+	private Boolean success;
 
-	public FinishInfo(String jobNo, Long startTime, Long endTime, Long runtime, Long readerRowNum, Long writerRowNum) {
+	public FinishInfo(String jobNo, Long startTime, Long endTime, Long runtime, Long readerRowNum, Long writerRowNum, Boolean success) {
 		super();
 		this.jobNo = jobNo;
 		this.startTime = startTime;
@@ -16,6 +17,7 @@ public class FinishInfo {
 		this.runtime = runtime;
 		this.readerRowNum = readerRowNum;
 		this.writerRowNum = writerRowNum;
+		this.success = success;
 	}
 
 	public Long getStartTime() {
@@ -66,9 +68,18 @@ public class FinishInfo {
 		this.jobNo = jobNo;
 	}
 
+	public Boolean getSuccess() {
+		return success;
+	}
+
+	public void setSuccess(Boolean success) {
+		this.success = success;
+	}
+
 	@Override
 	public String toString() {
-		return "FinishInfo [jobNo=" + jobNo + ", startTime=" + startTime + ", endTime=" + endTime + ", runtime=" + runtime + ", readerRowNum=" + readerRowNum + ", writerRowNum=" + writerRowNum + "]";
+		return "FinishInfo [jobNo=" + jobNo + ", startTime=" + startTime + ", endTime=" + endTime + ", runtime=" + runtime + ", readerRowNum=" + readerRowNum + ", writerRowNum=" + writerRowNum
+				+ ", success=" + success + "]";
 	}
 
 }

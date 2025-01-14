@@ -9,8 +9,6 @@ import cn.easydat.etl.entity.FinishInfo;
 import cn.easydat.etl.entity.JobParameter;
 import cn.easydat.etl.process.JobContainer;
 import cn.easydat.etl.process.JobInfo;
-import cn.easydat.etl.process.consumer.Consumer;
-import cn.easydat.etl.process.monitor.Monitor;
 import cn.easydat.etl.process.pre.Preprocessing;
 import cn.easydat.etl.process.producer.Producer;
 import cn.easydat.etl.util.DBUtil;
@@ -24,15 +22,13 @@ public class EtlTaskMain {
 
 		init(jobNo, parameter);
 
-		producer(jobNo);
-
-		startupMonitor(jobNo);
-
 		pre(parameter);
 
-		createConsumer(jobNo);
+		boolean success = producer(jobNo);
 
-		FinishInfo finishInfo = finish(jobNo);
+//		createConsumer(jobNo);
+
+		FinishInfo finishInfo = finish(jobNo, success);
 		
 		return finishInfo;
 	}
@@ -49,14 +45,9 @@ public class EtlTaskMain {
 		LOG.info("init finish.");
 	}
 
-	private void producer(String jobNo) {
+	private boolean producer(String jobNo) {
 		Producer producer = new Producer(jobNo);
-		producer.startupAndAsynGen();
-	}
-
-	private void startupMonitor(String jobNo) {
-		Monitor monitor = new Monitor(jobNo);
-		monitor.startup();
+		return producer.startupAndAsynGen();
 	}
 
 	private void pre(JobParameter parameter) {
@@ -64,20 +55,26 @@ public class EtlTaskMain {
 		pre.startup(parameter);
 	}
 
-	private void createConsumer(String jobNo) {
-		Consumer consumer = new Consumer(jobNo);
-		consumer.startup();
-	}
+//	private void createConsumer(String jobNo) {
+//		Consumer consumer = new Consumer(jobNo);
+//		consumer.startup();
+//	}
 
-	private FinishInfo finish(String jobNo) {
+	private FinishInfo finish(String jobNo, boolean success) {
 		JobInfo jobInfo = JobContainer.JOB_MAP.get(jobNo);
 		long endTime = System.currentTimeMillis();
 		long startTime = jobInfo.getMonitorStartTime();
-		long readerRowNum = jobInfo.monitorReaderRowNumGet();
-		long writerRowNum = jobInfo.monitorWriterRowNumGet();
+//		long readerRowNum = jobInfo.monitorReaderRowNumGet();
+//		long writerRowNum = jobInfo.monitorWriterRowNumGet();
+		long monitorProcessRowNum = 0;
+		long[] monitorProcessRowNumArr = jobInfo.getMonitorProcessRowNumArr();
+		for (long num : monitorProcessRowNumArr) {
+			monitorProcessRowNum += num;
+		}
+		
 		long runtime = (endTime - startTime) / 1000;
 
-		FinishInfo finishInfo = new FinishInfo(jobNo, startTime, endTime, runtime, readerRowNum, writerRowNum);
+		FinishInfo finishInfo = new FinishInfo(jobNo, startTime, endTime, runtime, null, monitorProcessRowNum, success);
 
 		JobContainer.JOB_MAP.remove(jobNo);
 		LOG.info("Finish,info:{}.", finishInfo);

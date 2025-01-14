@@ -21,31 +21,29 @@ public class Monitor {
 	public void startup() {
 		Thread thread = new Thread(() -> {
 			JobInfo jobInfo = JobContainer.JOB_MAP.get(jobNo);
-			int sleepSecond = 15;
+			int sleepSecond = 30;
 
-			long monitorReaderRowNumLast = 0;
-			long monitorWriterRowNumLast = 0;
+			long monitorProcessRowNumLast = 0;
 
 			// 读任务未完成或 读任务已完成且队列不为空
-			while (!jobInfo.isTaskQueueFinish() || (jobInfo.isAllReaderFinish() && !jobInfo.dataQueueIsEmpty())) {
-				long monitorReaderRowNum = jobInfo.monitorReaderRowNumGet();
-				long monitorWriterRowNum = jobInfo.monitorWriterRowNumGet();
+			while (!jobInfo.isTaskQueueFinish()) {
+				long monitorProcessRowNum = 0;
+				long[] monitorProcessRowNumArr = jobInfo.getMonitorProcessRowNumArr();
+				for (long num : monitorProcessRowNumArr) {
+					monitorProcessRowNum += num;
+				}
+				long processRowNum = monitorProcessRowNum - monitorProcessRowNumLast;
 
-				long readerRowNum = monitorReaderRowNum - monitorReaderRowNumLast;
-				long writerRowNum = monitorWriterRowNum - monitorWriterRowNumLast;
+				float processRowNumPer = (float) (processRowNum * 1.0 / sleepSecond);
 
-				float readerRowNumPer = (float) (readerRowNum * 1.0 / sleepSecond);
-				float writerRowNumPer = (float) (writerRowNum * 1.0 / sleepSecond);
-
-				LOG.info("平均读取行数:{},平均写入行数:{},读取总行数:{}, 写入总行数:{},QueueSize:{}", String.format("%.2f", readerRowNumPer), String.format("%.2f", writerRowNumPer), monitorReaderRowNum, monitorWriterRowNum,jobInfo.dataQueueSize());
+				LOG.info("平均处理行数:{},总处理行数:{}", String.format("%.2f", processRowNumPer), monitorProcessRowNum);
 
 				if (null != jobInfo.getParameter().getCustomMonitor()) {
-					MonitorInfo monitorInfo = new MonitorInfo(jobNo, readerRowNumPer, writerRowNumPer, monitorReaderRowNum, monitorWriterRowNum, jobInfo.dataQueueSize());
+					MonitorInfo monitorInfo = new MonitorInfo(jobNo, null, processRowNumPer, null, monitorProcessRowNum, null);
 					jobInfo.getParameter().getCustomMonitor().monitor(monitorInfo);
 				}
 				
-				monitorReaderRowNumLast = monitorReaderRowNum;
-				monitorWriterRowNumLast = monitorWriterRowNum;
+				monitorProcessRowNumLast = monitorProcessRowNum;
 
 				try {
 					Thread.sleep(sleepSecond * 1000);

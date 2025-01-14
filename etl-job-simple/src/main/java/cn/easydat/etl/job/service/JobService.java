@@ -150,6 +150,7 @@ public class JobService {
 			try {
 				EtlTaskMain etlTaskMain = new EtlTaskMain();
 				finishInfo = etlTaskMain.startup(jobParameter);
+				status = finishInfo.getSuccess() ? 2 : -1;
 			} catch (Throwable e) {
 				LOGGER.error("taskId:" + taskId, e);
 				status = -1;

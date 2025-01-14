@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import cn.easydat.etl.entity.JobParameter;
 import cn.easydat.etl.entity.MetaData;
+import cn.easydat.etl.entity.TaskNode;
 import cn.easydat.etl.entity.parameter.JobParameterWriter;
 import cn.easydat.etl.util.DBUtil;
 
@@ -31,16 +32,17 @@ public class JobInfo {
 	private final Map<Integer, Boolean> subReaderFinish;
 	private final BlockingQueue<Object[]> dataQueue;
 	private final String writeSql;
-	
+
 	private volatile boolean allReaderFinish;
 	private volatile List<MetaData> metaDatas;
 
 	private AtomicLong monitorReaderRowNum;
 	private AtomicLong monitorWriterRowNum;
+	private long[] monitorProcessRowNumArr;
 
 	private long monitorStartTime;
-	
-	private Map<String, List<String>> sqlsMap;
+
+	private TaskNode taskNode;
 
 	public JobInfo(JobParameter parameter) {
 		this.parameter = parameter;
@@ -54,7 +56,6 @@ public class JobInfo {
 		this.monitorWriterRowNum = new AtomicLong(0);
 		this.monitorReaderRowNum = new AtomicLong(0);
 		this.monitorStartTime = System.currentTimeMillis();
-
 	}
 
 	/**
@@ -100,7 +101,7 @@ public class JobInfo {
 				Thread.currentThread().interrupt();
 			}
 			i++;
-			
+
 			if (i % 100 == 0) {
 				LOG.warn("dataQueuePut wait " + i);
 			}
@@ -142,7 +143,7 @@ public class JobInfo {
 
 	public List<MetaData> getMetaDatas(ResultSet rs) {
 		if (null == metaDatas) {
-			synchronized (this){
+			synchronized (this) {
 				if (null == metaDatas) {
 					loadMetaData(rs);
 				}
@@ -209,12 +210,17 @@ public class JobInfo {
 		return sb.toString();
 	}
 
-	public Map<String, List<String>> getSqlsMap() {
-		return sqlsMap;
+	public TaskNode getTaskNode() {
+		return taskNode;
+	}
+	
+	public long[] getMonitorProcessRowNumArr() {
+		return monitorProcessRowNumArr;
 	}
 
-	public void setSqlsMap(Map<String, List<String>> sqlsMap) {
-		this.sqlsMap = sqlsMap;
+	public void setTaskNode(TaskNode taskNode) {
+		this.taskNode = taskNode;
+		this.monitorProcessRowNumArr = new long[taskNode.getReadSqlList().size()];
 	}
 
 }

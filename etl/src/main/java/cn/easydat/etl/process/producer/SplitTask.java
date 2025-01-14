@@ -6,14 +6,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import cn.easydat.etl.entity.JobParameter;
+import cn.easydat.etl.entity.TaskNode;
 import cn.easydat.etl.entity.parameter.JobParameterReader;
 import cn.easydat.etl.entity.parameter.JobParameterSetting;
 import cn.easydat.etl.util.DBUtil;
@@ -22,20 +21,26 @@ public class SplitTask {
 
 	private static final Logger LOG = LoggerFactory.getLogger(SplitTask.class);
 
-	public Map<String, List<String>> split(JobParameter parameter) {
+	public TaskNode split(JobParameter parameter) {
+		TaskNode taskNode = new TaskNode();
 		List<String> sqls = null;
-		Map<String, List<String>> sqlsMap = new HashMap<String, List<String>>();
 
 		if (null != parameter.getReader().getQuerySql()) {
 			sqls = new ArrayList<String>(1);
 			sqls.add(parameter.getReader().getQuerySql());
+			taskNode.setReadSqlList(sqls);
+			
+			List<String> deleteSqls = new ArrayList<String>(1);
+			deleteSqls.add("DELETE FROM " + parameter.getReader().getTableName());
+			taskNode.setDeleteSqlList(deleteSqls);
 		} else {
 			if (null != parameter.getReader().getSplitPk() && null != parameter.getReader().getSplitPk().getPkName()) {
 				if ("int".equals(parameter.getReader().getSplitPk().getPkDataType())) {
 					List<String> wherePKSplit = intSplit(parameter);
 					sqls = splitTask(parameter.getReader(), wherePKSplit);
-					sqlsMap.put("select", sqls);
-					sqlsMap.put("delete", splitDeleteTask(parameter.getReader(), wherePKSplit));
+					
+					taskNode.setReadSqlList(sqls);
+					taskNode.setDeleteSqlList(splitDeleteTask(parameter.getReader(), wherePKSplit));
 				} else if ("varchar".equals(parameter.getReader().getSplitPk().getPkDataType())) {
 					varcharSplit(parameter);
 				} else {
@@ -55,11 +60,11 @@ public class SplitTask {
 				List<String> deleteSqls = new ArrayList<String>(1);
 				deleteSqls.add(delSql);
 				
-				sqlsMap.put("select", sqls);
-				sqlsMap.put("delete", deleteSqls);
+				taskNode.setReadSqlList(sqls);
+				taskNode.setDeleteSqlList(deleteSqls);
 			}
 		}
-		return sqlsMap;
+		return taskNode;
 	}
 
 	private List<String> intSplit(JobParameter parameter) {
@@ -116,7 +121,7 @@ public class SplitTask {
 
 			int expectSliceNumber = setting.getChannel();
 			BigInteger endAndStartGap = max.subtract(min);
-			BigInteger step = endAndStartGap.divide(BigInteger.valueOf(expectSliceNumber));
+			BigInteger step = endAndStartGap.divide(BigInteger.valueOf(expectSliceNumber)).add(BigInteger.ONE);
 			BigInteger maxStep = BigInteger.valueOf(100000);
 
 			if (step.compareTo(maxStep) > 0) {
