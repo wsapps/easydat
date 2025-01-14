@@ -14,7 +14,7 @@ import cn.easydat.etl.entity.JobParameter;
 import cn.easydat.etl.entity.TaskNode;
 import cn.easydat.etl.process.JobContainer;
 import cn.easydat.etl.process.JobInfo;
-import cn.easydat.etl.process.consumer.ConsumerNew;
+import cn.easydat.etl.process.consumer.Consumer;
 import cn.easydat.etl.process.monitor.Monitor;
 
 public class Producer {
@@ -69,7 +69,7 @@ public class Producer {
 //				TaskInfo taskInfo = new TaskInfo(i, taskNode.getReadSqlList().get(i), taskNode.getDeleteSqlList().get(i));
 				//executorService.submit(new ConsumerNew(jobNo, i));
 				
-				futures[i] = executorService.submit(new ConsumerNew(jobNo, i));
+				futures[i] = executorService.submit(new Consumer(jobNo, i));
 			}
 			
 			for (Future<?> future : futures) {
