@@ -182,9 +182,15 @@ public class Consumer implements Runnable {
 	}
 
 	private Object[] transformHandler(Object[] data) throws SQLException {
-		// TODO
+		CustomTransform transform = jobInfo.getParameter().getCustomTransform();
+		Object[] dataPending = data;
+		if (null != transform) {
+			dataPending = transform.handle(dataPending);
+		}
 
-		writeHandler(data);
+		if (null != dataPending) {
+			writeHandler(dataPending);
+		}
 		return data;
 	}
 

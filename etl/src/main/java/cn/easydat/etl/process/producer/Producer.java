@@ -29,7 +29,6 @@ public class Producer {
 	}
 
 	public boolean startupAndAsynGen() {
-//		createReaderSplitSql();
 		TaskNode taskNode = createReaderSplitSql();
 		
 		Monitor monitor = new Monitor(jobNo);
@@ -44,8 +43,6 @@ public class Producer {
 		SplitTask producer = new SplitTask();
 		TaskNode taskNode = producer.split(parameter);
 
-//		LOG.info("readerSplitSize size:" + (null != readerSplitSqlList ? readerSplitSqlList.size() : "null"));
-		
 		jobInfo.setTaskNode(taskNode);
 
 		return taskNode;
@@ -66,8 +63,6 @@ public class Producer {
 			Future<?>[] futures = new Future[taskNode.getReadSqlList().size()];
 			
 			for (int i = 0; i < taskNode.getReadSqlList().size(); i++) {
-//				TaskInfo taskInfo = new TaskInfo(i, taskNode.getReadSqlList().get(i), taskNode.getDeleteSqlList().get(i));
-				//executorService.submit(new ConsumerNew(jobNo, i));
 				
 				futures[i] = executorService.submit(new Consumer(jobNo, i));
 			}
@@ -87,13 +82,6 @@ public class Producer {
 			
 			executorService.shutdown();
 			
-//			while (!executorService.isTerminated()) {
-//				try {
-//					executorService.awaitTermination(1, TimeUnit.SECONDS);
-//				} catch (InterruptedException e) {
-//					LOG.error("", e);
-//				}
-//			}
 		}
 
 		jobInfo.setAllReaderFinish(true);

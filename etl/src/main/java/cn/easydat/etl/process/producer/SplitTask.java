@@ -120,15 +120,20 @@ public class SplitTask {
 		} else {
 
 			int expectSliceNumber = setting.getChannel();
-			BigInteger endAndStartGap = max.subtract(min);
-			BigInteger step = endAndStartGap.divide(BigInteger.valueOf(expectSliceNumber)).add(BigInteger.ONE);
+			BigInteger endAndStartGap = max.subtract(min).add(BigInteger.ONE) ;
+			BigInteger step = endAndStartGap.divide(BigInteger.valueOf(expectSliceNumber));
+
+			if (endAndStartGap.mod(BigInteger.valueOf(expectSliceNumber)).compareTo(BigInteger.ZERO) > 0) {
+				step = step.add(BigInteger.ONE);
+			}
+
 			BigInteger maxStep = BigInteger.valueOf(100000);
 
 			if (step.compareTo(maxStep) > 0) {
 				step = maxStep;
 			}
 
-			List<BigInteger> list = new ArrayList<BigInteger>();
+			List<BigInteger> list = new ArrayList<BigInteger>(expectSliceNumber + 1);
 			list.add(min);
 			BigInteger value = min;
 
@@ -149,41 +154,6 @@ public class SplitTask {
 		return result;
 	}
 
-//	private BigInteger[] doBigIntegerSplit(BigInteger min, BigInteger max, JobParameterSetting setting) {
-//		BigInteger[] result = null;
-//		// 左开右闭, 所以最小值减一
-//		min = min.subtract(BigInteger.ONE);
-//		if (min.compareTo(max) == 0) {
-//			result = new BigInteger[] { min, max };
-//		} else {
-//
-//			int expectSliceNumber = setting.getChannel();
-//			BigInteger endAndStartGap = max.subtract(min);
-//			BigInteger step = endAndStartGap.divide(BigInteger.valueOf(expectSliceNumber));
-//			BigInteger remainder = endAndStartGap.remainder(BigInteger.valueOf(expectSliceNumber));
-//
-//			if (step.compareTo(BigInteger.ZERO) == 0) {
-//				expectSliceNumber = remainder.intValue();
-//			}
-//
-//			result = new BigInteger[expectSliceNumber + 1];
-//			result[0] = min;
-//			result[expectSliceNumber] = max;
-//
-//			BigInteger lowerBound;
-//			BigInteger upperBound = min;
-//
-//			for (int i = 1; i < expectSliceNumber; i++) {
-//				lowerBound = upperBound;
-//				upperBound = lowerBound.add(step);
-//				upperBound = upperBound.add((remainder.compareTo(BigInteger.valueOf(i)) >= 0) ? BigInteger.ONE : BigInteger.ZERO);
-//				result[i] = upperBound;
-//
-//			}
-//		}
-//		return result;
-//	}
-
 	private List<String> wherePKSplit(BigInteger[] pkArr, String pk) {
 		List<String> wheres = new ArrayList<>();
 		for (int i = 0; i < pkArr.length - 1; i++) {
@@ -199,15 +169,16 @@ public class SplitTask {
 
 		String sql = String.format("SELECT %s FROM %s", fields, reader.getTableName());
 
-		for (String pkSplit : wherePKSplit) {
-			String sqlSplit = sql + " WHERE " + pkSplit;
+		if (null != wherePKSplit && !wherePKSplit.isEmpty()) {
+			for (String pkSplit : wherePKSplit) {
+				String sqlSplit = sql + " WHERE " + pkSplit;
 
-			if (null != reader.getWhere()) {
-				sqlSplit += " AND " + reader.getWhere();
+				if (null != reader.getWhere()) {
+					sqlSplit += " AND " + reader.getWhere();
+				}
+
+				sqls.add(sqlSplit);
 			}
-
-			sqls.add(sqlSplit);
-			// LOG.info(sqlSplit);
 		}
 
 		return sqls;
@@ -218,9 +189,11 @@ public class SplitTask {
 
 		String sql = String.format("DELETE FROM %s", reader.getTableName());
 
-		for (String pkSplit : wherePKSplit) {
-			String sqlSplit = sql + " WHERE " + pkSplit;
-			sqls.add(sqlSplit);
+		if (null != wherePKSplit) {
+			for (String pkSplit : wherePKSplit) {
+				String sqlSplit = sql + " WHERE " + pkSplit;
+				sqls.add(sqlSplit);
+			}
 		}
 
 		return sqls;

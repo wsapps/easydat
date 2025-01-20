@@ -26,8 +26,6 @@ public class EtlTaskMain {
 
 		boolean success = producer(jobNo);
 
-//		createConsumer(jobNo);
-
 		FinishInfo finishInfo = finish(jobNo, success);
 		
 		return finishInfo;
@@ -55,17 +53,10 @@ public class EtlTaskMain {
 		pre.startup(parameter);
 	}
 
-//	private void createConsumer(String jobNo) {
-//		Consumer consumer = new Consumer(jobNo);
-//		consumer.startup();
-//	}
-
 	private FinishInfo finish(String jobNo, boolean success) {
 		JobInfo jobInfo = JobContainer.JOB_MAP.get(jobNo);
 		long endTime = System.currentTimeMillis();
 		long startTime = jobInfo.getMonitorStartTime();
-//		long readerRowNum = jobInfo.monitorReaderRowNumGet();
-//		long writerRowNum = jobInfo.monitorWriterRowNumGet();
 		long monitorProcessRowNum = 0;
 		long[] monitorProcessRowNumArr = jobInfo.getMonitorProcessRowNumArr();
 		for (long num : monitorProcessRowNumArr) {
