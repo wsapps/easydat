@@ -127,7 +127,8 @@ public class SplitTask {
 				step = step.add(BigInteger.ONE);
 			}
 
-			BigInteger maxStep = BigInteger.valueOf(100000);
+			
+			BigInteger maxStep = BigInteger.valueOf((null != setting.getSplitMax() ? setting.getSplitMax() : 50000));
 
 			if (step.compareTo(maxStep) > 0) {
 				step = maxStep;

@@ -11,7 +11,6 @@ import org.noear.solon.annotation.Post;
 import org.noear.solon.validation.annotation.NotNull;
 
 import cn.easydat.etl.job.service.JobService;
-import cn.easydat.etl.job.service.TestService;
 
 @Mapping("job")
 @Controller
@@ -20,9 +19,6 @@ public class JobMain {
 	@Inject
 	private JobService jobService;
 	
-	@Inject
-	private TestService testService;
-
 	@Post
 	@Mapping("run/{jobId}")
 	public BigInteger run(@NotNull @Path("jobId") Integer jobId) {
@@ -52,6 +48,18 @@ public class JobMain {
 		
 		Thread thread = new Thread(() -> {
 			jobService.createAndRunJobTask(processNo);
+		});
+		thread.start();
+		
+		return "execute";
+	}
+	
+	@Get
+	@Mapping("recoveringIncompleteExecution")
+	public String recoveringIncompleteExecution() {
+		
+		Thread thread = new Thread(() -> {
+			jobService.recoveringIncompleteExecution();
 		});
 		thread.start();
 		

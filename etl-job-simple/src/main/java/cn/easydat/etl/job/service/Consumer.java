@@ -18,7 +18,6 @@ import org.slf4j.LoggerFactory;
 import cn.easydat.etl.entity.JobParameter;
 import cn.easydat.etl.entity.MetaData;
 import cn.easydat.etl.process.consumer.CustomTransform;
-import cn.easydat.etl.util.DBUtil;
 
 public class Consumer {
 
@@ -34,43 +33,55 @@ public class Consumer {
 	private List<MetaData> metaDatas;
 	private boolean readRun;
 	private Connection writeConn;
-	private List<Object[]> writeDate;
+	private PreparedStatement writePS;
 	private boolean error;
 	private int writeNum;
+	private Long id;
+	private SimpleConnectionPool readPool;
+	private SimpleConnectionPool writePool;
 
-	public Consumer(String readSql, String writeSql, String deleteSql, JobParameter jobParameter) {
+	public Consumer(String readSql, String writeSql, String deleteSql, JobParameter jobParameter, SimpleConnectionPool readPool, SimpleConnectionPool writePool) {
 		super();
 		this.readSql = readSql;
 		this.writeSql = writeSql;
 		this.deleteSql = deleteSql;
 		this.jobParameter = jobParameter;
+		this.readPool = readPool;
+		this.writePool = writePool;
 
 		this.dataQueue = new LinkedBlockingQueue<>(this.jobParameter.getSetting().getMaxNumOfChannel());
-		this.writeDate = new ArrayList<Object[]>(this.jobParameter.getWriter().getBatchSize());
 		this.writeNum = 0;
 	}
 
 	public boolean run(Long id, Integer runStatus) {
-		Thread.currentThread().setName("consumer-" + id);
+//		Thread.currentThread().setName("consumer-" + id);
+		this.id = id;
 		readRun = true;
 		error = false;
 
 		if (ERROR_RUN_STATUS.equals(runStatus)) {
 			if (null != deleteSql) {
-				try (Connection conn = getWriteConn(); Statement stmt = conn.createStatement()) {
+				try (Connection conn = writePool.getConnection(); Statement stmt = conn.createStatement()) {
 					LOG.info("delete start sql :" + deleteSql);
 					stmt.execute(deleteSql);
 					LOG.info("delete end sql :" + deleteSql);
+					writePool.releaseConnection(conn);
 				} catch (Exception e) {
 					LOG.error("run,sql:" + deleteSql, e);
 					error = true;
 				}
 			}
 		}
-		
+
 		if (!error) {
 			Thread thread = new Thread(() -> {
 				try {
+					LOG.info("write getConnection start");
+					this.writeConn = writePool.getConnection();
+					this.writeConn.setAutoCommit(false);
+					this.writePS = this.writeConn.prepareStatement(writeSql);
+					LOG.info("write getConnection end");
+
 					write();
 				} catch (Exception e) {
 					LOG.error("run,sql:" + readSql, e);
@@ -86,22 +97,17 @@ public class Consumer {
 				LOG.error("run,sql:" + readSql, e);
 				error = true;
 			}
-			
-			if (!error) {
-				while (!this.dataQueue.isEmpty()) {
-					try {
-						Thread.sleep(1000);
-					} catch (InterruptedException e) {
-						LOG.error("run,sql:" + readSql, e);
-					}
-				}
 
+			while (!this.dataQueue.isEmpty()) {
 				try {
-					writeEnd();
-				} catch (SQLException e) {
-					error = true;
-					throw new RuntimeException(e);
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					LOG.error("run,sql:" + readSql, e);
 				}
+			}
+
+			if (error) {
+				throw new RuntimeException();
 			}
 
 		}
@@ -110,13 +116,16 @@ public class Consumer {
 	}
 
 	private void read() {
-		try (Connection readerConn = DBUtil.getConnection(jobParameter.getReader().getJdbc()); Statement stmt = createReadStatement(readerConn); ResultSet rs = stmt.executeQuery(readSql)) {
+		LOG.info("read getConnection start");
+		try (Connection readerConn = readPool.getConnection(); Statement stmt = createReadStatement(readerConn); ResultSet rs = stmt.executeQuery(readSql)) {
+			LOG.info("read getConnection end");
 			List<MetaData> metaDataList = getMetaDatas(rs);
 			int fieldSize = metaDataList.size();
 
 			while (rs.next()) {
-				
+
 				if (error) {
+					this.dataQueue.clear();
 					break;
 				}
 
@@ -129,6 +138,7 @@ public class Consumer {
 			}
 
 			readRun = false;
+			readPool.releaseConnection(readerConn);
 		} catch (Exception e) {
 			error = true;
 			throw new RuntimeException(e);
@@ -142,18 +152,46 @@ public class Consumer {
 				Object[] data = dataQueuePoll();
 				transformHandler(data);
 			} catch (SQLException e) {
-				//LOG.error("", e);
-				
+				// LOG.error("", e);
+
 				error = true;
 				throw new RuntimeException(e);
 			}
 		}
 
-		Connection conn = getWriteConn();
+		Connection conn = this.writeConn;
+		PreparedStatement ps = this.writePS;
+
+		if (null != ps) {
+			try {
+				ps.executeBatch();
+				ps.clearBatch();
+				ps.close();
+			} catch (SQLException e) {
+				LOG.error("", e);
+				error = true;
+				throw new RuntimeException(e);
+			}
+		}
+
 		if (null != conn) {
 			try {
+				conn.commit();
 				conn.close();
 			} catch (SQLException e) {
+				try {
+					conn.rollback();
+				} catch (SQLException e1) {
+					
+				} finally {
+					if (null != conn) {
+						try {
+							conn.close();
+						} catch (SQLException e1) {
+							LOG.error("", e1);
+						}
+					}
+				}
 				LOG.error("", e);
 				error = true;
 				throw new RuntimeException(e);
@@ -176,104 +214,50 @@ public class Consumer {
 	}
 
 	private void writeHandler(Object[] row) throws SQLException {
-		writeDate.add(row);
-
-		if (this.writeDate.size() == jobParameter.getWriter().getBatchSize()) {
-			Connection conn = null;
-			PreparedStatement ps = null;
-			try {
-				conn = getWriteConn();
-				ps = conn.prepareStatement(writeSql);
-				for (Object[] data : this.writeDate) {
-					for (int i = 0; i < data.length; i++) {
-						ps.setObject(i + 1, data[i]);
-					}
-					ps.addBatch();
-				}
-				ps.executeBatch();
-				ps.clearBatch();
-				conn.commit();
-
-				this.writeNum += this.writeDate.size();
-				this.writeDate.clear();
-			} catch (SQLException e) {
-				conn.rollback();
-				
-				if (null != conn) {
-					conn.close();
-				}
-				this.error = true;
-				throw new RuntimeException(e);
-			} finally {
-				if (null != ps) {
-					ps.close();
-				}
-			}
-
-			
-		}
-	}
-
-	private void writeEnd() throws SQLException {
-
-		if (!this.writeDate.isEmpty()) {
-			Connection conn = null;
-			PreparedStatement ps = null;
-			
-			try {
-				conn = getWriteConn();
-				ps = conn.prepareStatement(writeSql);
-				for (Object[] data : this.writeDate) {
-					for (int i = 0; i < data.length; i++) {
-						ps.setObject(i + 1, data[i]);
-					}
-					ps.addBatch();
-				}
-				ps.executeBatch();
-				ps.clearBatch();
-				conn.commit();
-
-				this.writeNum += this.writeDate.size();
-				this.writeDate.clear();
-
-				
-			} catch (SQLException e) {
-				conn.rollback();
-				if (null != conn) {
-					conn.close();
-				}
-				this.error = true;
-				throw new RuntimeException(e);
-			} finally {
-				if (null != ps) {
-					ps.close();
-				}
-			}
-		}
-	}
-
-	private Connection getWriteConn() {
+		Connection conn = null;
+		PreparedStatement ps = null;
 		try {
-			if (null == this.writeConn) {
-				this.writeConn = DBUtil.getConnection(jobParameter.getWriter().getJdbc());
-				this.writeConn.setAutoCommit(false);
-			} else {
-				try {
-					boolean isValid = this.writeConn.isValid(5);
-					if (!isValid) {
-						this.writeConn = DBUtil.getConnection(jobParameter.getWriter().getJdbc());
-						this.writeConn.setAutoCommit(false);
-					}
-				} catch (SQLException e) {
-					this.writeConn = DBUtil.getConnection(jobParameter.getWriter().getJdbc());
-					this.writeConn.setAutoCommit(false);
-				}
+			conn = this.writeConn;
+			ps = this.writePS;
+			for (int i = 0; i < row.length; i++) {
+				ps.setObject(i + 1, row[i]);
+			}
+			ps.addBatch();
+			this.writeNum++;
+			
+//			if (this.writeNum == 1 || this.writeNum % 100 == 0) {
+//				LOG.info("write addBatch, writeNum:" + writeNum);
+//			}
+
+			if (this.writeNum % jobParameter.getWriter().getBatchSize() == 0) {
+//				LOG.info("write executeBatch start");
+				ps.executeBatch();
+//				LOG.info("write executeBatch end");
+				ps.clearBatch();
+//				LOG.info("write clearBatch end");
+				conn.commit();
+//				LOG.info("write commit end");
+
+			}
+
+			if (this.writeNum % (jobParameter.getWriter().getBatchSize() * 10) == 0) {
+				LOG.info("commit,id:" + id + ", writeNum:" + writeNum);
 			}
 		} catch (SQLException e) {
-			LOG.error("", e);
+			try {
+				conn.rollback();
+			} catch (SQLException e1) {
+				
+			} finally {
+				if (null != conn) {
+					conn.close();
+				}
+			}
+			
+			this.error = true;
+			throw new RuntimeException(e);
 		}
 
-		return this.writeConn;
 	}
 
 	private Statement createReadStatement(Connection conn) throws SQLException {
@@ -320,22 +304,26 @@ public class Consumer {
 	private void dataQueueOffer(Object[] data) {
 		int i = 0;
 		boolean flag = false;
+		long timeout = 50;
+		long printExeNum = (1000 / timeout) * 30;
+		
 		while (!flag) {
-			
+
 			if (error) {
+				this.dataQueue.clear();
 				break;
 			}
 
 			try {
-				flag = this.dataQueue.offer(data, 200, TimeUnit.MILLISECONDS);
+				flag = this.dataQueue.offer(data, timeout, TimeUnit.MILLISECONDS);
 			} catch (InterruptedException e) {
 				LOG.error("dataQueuePut error", e);
 				Thread.currentThread().interrupt();
 			}
 			i++;
 
-			if (i % 100 == 0) {
-				LOG.warn("dataQueuePut wait " + i + ", dataQueue size:" + this.dataQueue.size() + ", writeNum:" + this.writeNum);
+			if (i % printExeNum == 0) {
+				LOG.warn(id + "-dataQueuePut wait " + i + ", dataQueue size:" + this.dataQueue.size() + ", writeNum:" + this.writeNum);
 			}
 		}
 	}
