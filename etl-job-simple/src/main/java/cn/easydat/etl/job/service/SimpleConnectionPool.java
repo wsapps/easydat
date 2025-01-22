@@ -6,9 +6,15 @@ import java.sql.SQLException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import cn.easydat.etl.entity.parameter.JobParameterJdbc;
 
 public class SimpleConnectionPool {
+	
+	private static final Logger LOGGER = LoggerFactory.getLogger(SimpleConnectionPool.class);
+	
 	private String url;
 	private String user;
 	private String password;
@@ -22,10 +28,10 @@ public class SimpleConnectionPool {
 		this.maxSize = maxSize;
 		this.pool = new LinkedBlockingQueue<>(maxSize);
 
-		// 初始化连接池
-		for (int i = 0; i < initialSize; i++) {
-			pool.offer(createConnection());
-		}
+//		// 初始化连接池
+//		for (int i = 0; i < initialSize; i++) {
+//			pool.offer(createConnection());
+//		}
 	}
 
 	public SimpleConnectionPool(String url, String user, String password, int initialSize, int maxSize) throws SQLException {
@@ -43,6 +49,7 @@ public class SimpleConnectionPool {
 
 	// 创建新连接
 	private Connection createConnection() throws SQLException {
+		LOGGER.info("createConnection");
 		return DriverManager.getConnection(url, user, password);
 	}
 

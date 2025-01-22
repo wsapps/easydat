@@ -138,6 +138,7 @@ public class JobService {
 	public void recoveringIncompleteExecution() {
 		String updateSql = "UPDATE etl_job_task_node_process SET run_status=-1 WHERE run_status=1";
 		try {
+			LOGGER.info("recoveringIncompleteExecution");
 			sqlUtils.sql(updateSql).update();
 		} catch (SQLException e) {
 			throw new RuntimeException(e);
@@ -154,29 +155,29 @@ public class JobService {
 
 	@SuppressWarnings("unchecked")
 	private Long getIncompleteExecution() {
-		String findTaskNodeProcessSql = "SELECT * FROM etl_job_task_node_process WHERE run_status=0 limit 1";
+		String findTaskNodeProcessSql = "SELECT * FROM etl_job_task_node_process WHERE run_status IN (-1,0) limit 1";
 		String findTaskProcessSql = "select * from etl_job_task_process where job_process_id=? and task_id=? and run_status=1";
-		Long id = null;
+		Long taskProcessId = null;
 		try {
 			Map<String, Object> nodeProcess = sqlUtils.sql(findTaskNodeProcessSql).queryRow(Map.class);
 			
 			if (null != nodeProcess) {
 
-				id = toLong(nodeProcess.get("id"));
 				Long jobProcessId = toLong(nodeProcess.get("job_process_id"));
 				Long taskId = toLong(nodeProcess.get("task_id"));
 				
 				Map<String, Object> taskProcess = sqlUtils.sql(findTaskProcessSql, jobProcessId, taskId).queryRow(Map.class);
+				taskProcessId = toLong(taskProcess.get("id"));
 				JobParameter jobParameter = taskInfoToJobParameter(taskProcess);
 				
-				executeJobTask(jobParameter, BigInteger.valueOf(jobProcessId), taskId.intValue(), new Date(), id);
+				executeJobTask(jobParameter, BigInteger.valueOf(jobProcessId), taskId.intValue(), new Date(), taskProcessId);
 			}
 
 		} catch (SQLException e) {
 			throw new RuntimeException(e);
 		}
 		
-		return id;
+		return taskProcessId;
 	}
 
 	private BigInteger createJobProcess(Integer jobId) {
@@ -389,8 +390,10 @@ public class JobService {
 		}
 		
 		try {
+			LOGGER.info("Pool shutdown start");
 			readPool.shutdown();
 			writePool.shutdown();
+			LOGGER.info("Pool shutdown end");
 		} catch (SQLException e) {
 			LOGGER.error("processNo:" + processNo + ", taskId:" + taskId, e);
 		}
