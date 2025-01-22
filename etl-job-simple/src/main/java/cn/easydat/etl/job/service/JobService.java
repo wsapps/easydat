@@ -121,11 +121,13 @@ public class JobService {
 		Map<String, Object> taskInfo = getExecutableTaskByProcessNo(processNo, date);
 
 		if (null != taskInfo) {
+			LOGGER.info("createJobTaskNode start");
 			Integer jobId = (Integer) taskInfo.get("job_id");
 			taskId = (Integer) taskInfo.get("task_id");
 			Long id = toLong(taskInfo.get("id"));
 			JobParameter jobParameter = taskInfoToJobParameter(taskInfo);
 			createJobTaskNode(processNo, jobId, taskId, jobParameter);
+			LOGGER.info("createJobTaskNode end");
 
 			Preprocessing preprocessing = new Preprocessing();
 			preprocessing.startup(jobParameter);
@@ -356,26 +358,14 @@ public class JobService {
 	}
 
 	private void executeJobTask(JobParameter jobParameter, BigInteger processNo, Integer taskId, Date date, Long id) {
+		LOGGER.info("task start {} processNo:{},taskId:{}", jobParameter.getWriter().getTableName(), processNo, taskId);
 		int channel = jobParameter.getSetting().getChannel();
 
 		ExecutorService executorService = new ThreadPoolExecutor(channel, channel, 0, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<Runnable>(channel));
-		
-		SimpleConnectionPool readPool = null;
-		SimpleConnectionPool writePool = null;
-		
-		try {
-			readPool = new SimpleConnectionPool(jobParameter.getReader().getJdbc(), channel, channel + 1);
-			writePool = new SimpleConnectionPool(jobParameter.getWriter().getJdbc(), channel, channel + 1);
-		} catch (SQLException e) {
-			LOGGER.error("SimpleConnectionPool error", e);
-		}
-		
 
 		for (int i = 0; i < channel; i++) {
-			final SimpleConnectionPool rp = readPool;
-			final SimpleConnectionPool wp = writePool;
 			executorService.submit(() -> {
-				executeJobTaskNode(jobParameter, processNo, taskId, rp, wp);
+				executeJobTaskNode(jobParameter, processNo, taskId);
 			});
 		}
 
@@ -389,15 +379,6 @@ public class JobService {
 			}
 		}
 		
-		try {
-			LOGGER.info("Pool shutdown start");
-			readPool.shutdown();
-			writePool.shutdown();
-			LOGGER.info("Pool shutdown end");
-		} catch (SQLException e) {
-			LOGGER.error("processNo:" + processNo + ", taskId:" + taskId, e);
-		}
-		
 		Date runTimeEnd = new Date();
 		long runtime = (runTimeEnd.getTime() - date.getTime()) / 1000;
 		String updateSql = "update etl_job_task_process set run_status=2,run_time_end=?,runtime=? where id=?";
@@ -409,7 +390,7 @@ public class JobService {
 
 	}
 
-	private void executeJobTaskNode(JobParameter jobParameter, BigInteger processNo, Integer taskId, SimpleConnectionPool readPool, SimpleConnectionPool writePool) {
+	private void executeJobTaskNode(JobParameter jobParameter, BigInteger processNo, Integer taskId) {
 		String updateNodeSuccessSql = "update etl_job_task_node_process set run_status=2,run_time_end=?,runtime=?,writer_row_num=? where id=?";
 		String updateNodeFailureSql = "update etl_job_task_node_process set run_status=-1,retry_times=? where id=?";
 		while (true) {
@@ -422,7 +403,7 @@ public class JobService {
 				Date runTimeStart = (Date) nodeInfo.get("run_time_start");
 				Integer retryTimes = (Integer) nodeInfo.get("retry_times");
 				Integer runStatus = (Integer) nodeInfo.get("run_status");
-				Consumer consumer = new Consumer(readSql, writeSql, deleteSql, jobParameter, readPool, writePool);
+				Consumer consumer = new Consumer(readSql, writeSql, deleteSql, jobParameter);
 				boolean error = false;
 				try {
 					error = consumer.run(id, runStatus);

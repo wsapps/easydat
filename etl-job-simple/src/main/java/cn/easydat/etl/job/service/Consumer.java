@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import cn.easydat.etl.entity.JobParameter;
 import cn.easydat.etl.entity.MetaData;
+import cn.easydat.etl.job.common.Container;
 import cn.easydat.etl.process.consumer.CustomTransform;
 
 public class Consumer {
@@ -37,38 +38,48 @@ public class Consumer {
 	private boolean error;
 	private int writeNum;
 	private Long id;
-	private SimpleConnectionPool readPool;
-	private SimpleConnectionPool writePool;
 
-	public Consumer(String readSql, String writeSql, String deleteSql, JobParameter jobParameter, SimpleConnectionPool readPool, SimpleConnectionPool writePool) {
+	public Consumer(String readSql, String writeSql, String deleteSql, JobParameter jobParameter) {
 		super();
 		this.readSql = readSql;
 		this.writeSql = writeSql;
 		this.deleteSql = deleteSql;
 		this.jobParameter = jobParameter;
-		this.readPool = readPool;
-		this.writePool = writePool;
 
 		this.dataQueue = new LinkedBlockingQueue<>(this.jobParameter.getSetting().getMaxNumOfChannel());
 		this.writeNum = 0;
 	}
 
 	public boolean run(Long id, Integer runStatus) {
-//		Thread.currentThread().setName("consumer-" + id);
+		Thread.currentThread().setName("consumer-" + id);
 		this.id = id;
 		readRun = true;
 		error = false;
 
 		if (ERROR_RUN_STATUS.equals(runStatus)) {
 			if (null != deleteSql) {
-				try (Connection conn = writePool.getConnection(); Statement stmt = conn.createStatement()) {
+				Connection conn = null;
+				Statement stmt = null;
+				try {
+					conn = Container.getConnectionPool().getConnection(jobParameter.getWriter().getJdbc());
+					stmt = conn.createStatement();
 					LOG.info("delete start sql :" + deleteSql);
 					stmt.execute(deleteSql);
 					LOG.info("delete end sql :" + deleteSql);
-					writePool.releaseConnection(conn);
+
 				} catch (Exception e) {
 					LOG.error("run,sql:" + deleteSql, e);
 					error = true;
+				} finally {
+					try {
+						if (null != stmt) {
+							stmt.close();
+						}
+					} catch (SQLException e) {
+						LOG.error("", e);
+					}
+					
+					Container.getConnectionPool().releaseConnection(jobParameter.getWriter().getJdbc(), conn);
 				}
 			}
 		}
@@ -76,16 +87,16 @@ public class Consumer {
 		if (!error) {
 			Thread thread = new Thread(() -> {
 				try {
-					LOG.info("write getConnection start");
-					this.writeConn = writePool.getConnection();
+					this.writeConn = Container.getConnectionPool().getConnection(jobParameter.getWriter().getJdbc());
 					this.writeConn.setAutoCommit(false);
 					this.writePS = this.writeConn.prepareStatement(writeSql);
-					LOG.info("write getConnection end");
 
 					write();
 				} catch (Exception e) {
 					LOG.error("run,sql:" + readSql, e);
 					error = true;
+				} finally {
+					Container.getConnectionPool().releaseConnection(jobParameter.getWriter().getJdbc(), writeConn);
 				}
 			});
 			thread.setName("consumer-write-" + id);
@@ -116,9 +127,14 @@ public class Consumer {
 	}
 
 	private void read() {
-		LOG.info("read getConnection start");
-		try (Connection readerConn = readPool.getConnection(); Statement stmt = createReadStatement(readerConn); ResultSet rs = stmt.executeQuery(readSql)) {
-			LOG.info("read getConnection end");
+		Connection readerConn = null;
+		Statement stmt = null;
+		ResultSet rs = null;
+		try  {
+			readerConn = Container.getConnectionPool().getConnection(jobParameter.getReader().getJdbc());
+			stmt = createReadStatement(readerConn);
+			rs = stmt.executeQuery(readSql);
+			
 			List<MetaData> metaDataList = getMetaDatas(rs);
 			int fieldSize = metaDataList.size();
 
@@ -136,12 +152,24 @@ public class Consumer {
 
 				dataQueueOffer(data);
 			}
-
-			readRun = false;
-			readPool.releaseConnection(readerConn);
+			
 		} catch (Exception e) {
 			error = true;
 			throw new RuntimeException(e);
+		} finally {
+			readRun = false;
+			try {
+				if (null != rs) {
+					rs.close();
+				}
+
+				if (null != stmt) {
+					stmt.close();
+				}
+			} catch (SQLException e) {
+				LOG.error("", e);
+			}
+			Container.getConnectionPool().releaseConnection(jobParameter.getReader().getJdbc(), readerConn);
 		}
 	}
 
@@ -177,21 +205,13 @@ public class Consumer {
 		if (null != conn) {
 			try {
 				conn.commit();
-				conn.close();
 			} catch (SQLException e) {
 				try {
 					conn.rollback();
 				} catch (SQLException e1) {
-					
-				} finally {
-					if (null != conn) {
-						try {
-							conn.close();
-						} catch (SQLException e1) {
-							LOG.error("", e1);
-						}
-					}
+
 				}
+
 				LOG.error("", e);
 				error = true;
 				throw new RuntimeException(e);
@@ -224,36 +244,23 @@ public class Consumer {
 			}
 			ps.addBatch();
 			this.writeNum++;
-			
-//			if (this.writeNum == 1 || this.writeNum % 100 == 0) {
-//				LOG.info("write addBatch, writeNum:" + writeNum);
-//			}
 
 			if (this.writeNum % jobParameter.getWriter().getBatchSize() == 0) {
-//				LOG.info("write executeBatch start");
 				ps.executeBatch();
-//				LOG.info("write executeBatch end");
 				ps.clearBatch();
-//				LOG.info("write clearBatch end");
 				conn.commit();
-//				LOG.info("write commit end");
-
 			}
 
 			if (this.writeNum % (jobParameter.getWriter().getBatchSize() * 10) == 0) {
-				LOG.info("commit,id:" + id + ", writeNum:" + writeNum);
+				LOG.info("{} commit,id:{},writeNum:{}", jobParameter.getWriter().getTableName(), id, writeNum);
 			}
 		} catch (SQLException e) {
 			try {
 				conn.rollback();
 			} catch (SQLException e1) {
-				
-			} finally {
-				if (null != conn) {
-					conn.close();
-				}
+
 			}
-			
+
 			this.error = true;
 			throw new RuntimeException(e);
 		}
@@ -306,7 +313,7 @@ public class Consumer {
 		boolean flag = false;
 		long timeout = 50;
 		long printExeNum = (1000 / timeout) * 30;
-		
+
 		while (!flag) {
 
 			if (error) {
