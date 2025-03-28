@@ -248,10 +248,10 @@ public class Consumer {
 			if (this.writeNum % jobParameter.getWriter().getBatchSize() == 0) {
 				ps.executeBatch();
 				ps.clearBatch();
-				conn.commit();
 			}
 
-			if (this.writeNum % (jobParameter.getWriter().getBatchSize() * 10) == 0) {
+			if (this.writeNum % (jobParameter.getWriter().getBatchSize() * 100) == 0) {
+				conn.commit();
 				LOG.info("{} commit,id:{},writeNum:{}", jobParameter.getWriter().getTableName(), id, writeNum);
 			}
 		} catch (SQLException e) {

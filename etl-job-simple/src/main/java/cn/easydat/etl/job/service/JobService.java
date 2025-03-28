@@ -31,7 +31,7 @@ import cn.easydat.etl.entity.TaskNode;
 import cn.easydat.etl.entity.parameter.JobParameterSetting;
 import cn.easydat.etl.entity.parameter.JobParameterWriter;
 import cn.easydat.etl.process.pre.Preprocessing;
-import cn.easydat.etl.process.producer.SplitTask;
+import cn.easydat.etl.process.producer.SplitTaskEx;
 import cn.easydat.etl.util.DBUtil;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.json.JSONObject;
@@ -55,6 +55,9 @@ public class JobService {
 
 	@Inject("${easydate.etl.job.batchSize}")
 	public Integer batchSize;
+	
+	@Inject("${easydate.etl.job.splitMax}")
+	public Integer splitMax;
 
 	public BigInteger runJob(Integer jobId) {
 		BigInteger processNo = createJobProcess(jobId);
@@ -98,15 +101,21 @@ public class JobService {
 	}
 
 	public void createAndRunJobTask(BigInteger processNo) {
-
+		String updateSql = "update etl_job_process set run_status=2,run_time_end=? where id=?";
 		while (true) {
-			Integer taskId = createJobTask(processNo);
+			Integer taskId = null;
+			try {
+				taskId = createJobTask(processNo);
+			} catch (Exception e) {
+				LOGGER.error("processNo:" + processNo, e);
+				updateSql = "update etl_job_process set run_status=-1,run_time_end=? where id=?";
+			}
+			
 			if (null == taskId) {
 				break;
 			}
 		}
 
-		String updateSql = "update etl_job_process set run_status=2,run_time_end=? where id=?";
 		try {
 			sqlUtils.sql(updateSql, new Date(), processNo).update();
 		} catch (SQLException e) {
@@ -195,7 +204,7 @@ public class JobService {
 	}
 
 	private void createJobTaskNode(BigInteger processNo, Integer jobId, Integer taskId, JobParameter jobParameter) {
-		SplitTask splitTask = new SplitTask();
+		SplitTaskEx splitTask = new SplitTaskEx();
 		TaskNode taskNode = splitTask.split(jobParameter);
 		String sql = "INSERT INTO etl.etl_job_task_node_process( job_process_id, job_id, task_id, run_status, read_sql, write_sql,delete_sql) VALUES (?, ?, ?, ?, ?, ?,?)";
 
@@ -217,6 +226,8 @@ public class JobService {
 				throw new RuntimeException(e);
 			}
 		}
+		
+		LOGGER.info("createJobTaskNode end,taskId:" + taskId);
 	}
 
 	private JobParameter taskInfoToJobParameter(Map<String, Object> taskInfo) {
@@ -277,6 +288,9 @@ public class JobService {
 			}
 			if (null == jobParameter.getSetting().getMaxNumOfChannel()) {
 				jobParameter.getSetting().setMaxNumOfChannel(maxNumOfChannel);
+			}
+			if (null == jobParameter.getSetting().getSplitMax()) {
+				jobParameter.getSetting().setSplitMax(splitMax);
 			}
 			if (null == jobParameter.getWriter().getBatchSize()) {
 				jobParameter.getWriter().setBatchSize(batchSize);
@@ -387,6 +401,8 @@ public class JobService {
 		} catch (SQLException e) {
 			LOGGER.error("processNo:" + processNo + ", taskId:" + taskId, e);
 		}
+		
+		LOGGER.info("task end {} processNo:{},taskId:{}", jobParameter.getWriter().getTableName(), processNo, taskId);
 
 	}
 

@@ -40,7 +40,7 @@ public class Producer {
 	public TaskNode createReaderSplitSql() {
 		JobInfo jobInfo = JobContainer.JOB_MAP.get(jobNo);
 		JobParameter parameter = jobInfo.getParameter();
-		SplitTask producer = new SplitTask();
+		SplitTaskEx producer = new SplitTaskEx();
 		TaskNode taskNode = producer.split(parameter);
 
 		jobInfo.setTaskNode(taskNode);

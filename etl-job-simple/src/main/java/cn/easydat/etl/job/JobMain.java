@@ -19,6 +19,11 @@ public class JobMain {
 	@Inject
 	private JobService jobService;
 	
+	/**
+	 * 创建并etl_job_process、etl_job_task_process
+	 * @param jobId
+	 * @return
+	 */
 	@Post
 	@Mapping("run/{jobId}")
 	public BigInteger run(@NotNull @Path("jobId") Integer jobId) {
