@@ -62,6 +62,11 @@ public class JobService {
 	public BigInteger runJob(Integer jobId) {
 		BigInteger processNo = createJobProcess(jobId);
 		// createJobTask(processNo);
+		
+		Thread thread = new Thread(() -> {
+			createAndRunJobTask(processNo);
+		});
+		thread.start();
 
 		return processNo;
 	}

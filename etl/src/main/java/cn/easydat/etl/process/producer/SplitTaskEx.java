@@ -157,7 +157,7 @@ public class SplitTaskEx {
 
 	private List<String> wherePKSplit(List<BigInteger[]> pkArr, String pk) {
 		List<String> wheres = new ArrayList<>();
-		for (int i = 0; i < pkArr.size() - 1; i++) {
+		for (int i = 0; i < pkArr.size(); i++) {
 			String where = String.format(" %s >= %s AND %s <= %s", pk, pkArr.get(i)[0], pk, pkArr.get(i)[1]);
 			wheres.add(where);
 		}

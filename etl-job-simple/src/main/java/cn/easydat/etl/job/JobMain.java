@@ -33,6 +33,7 @@ public class JobMain {
 	
 	@Get
 	@Mapping("executeTask")
+	@Deprecated
 	public String executeTask() {
 		
 		Thread thread = new Thread(() -> {

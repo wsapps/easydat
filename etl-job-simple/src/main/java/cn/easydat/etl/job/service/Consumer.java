@@ -250,9 +250,9 @@ public class Consumer {
 				ps.clearBatch();
 			}
 
-			if (this.writeNum % (jobParameter.getWriter().getBatchSize() * 100) == 0) {
-				conn.commit();
-				LOG.info("{} commit,id:{},writeNum:{}", jobParameter.getWriter().getTableName(), id, writeNum);
+			if (this.writeNum % (jobParameter.getWriter().getBatchSize() * 1000) == 0) {
+				//conn.commit();
+				LOG.info("{} commit,id:{},writeNum:{},dataQueue:{}", jobParameter.getWriter().getTableName(), id, writeNum, dataQueue.size());
 			}
 		} catch (SQLException e) {
 			try {
@@ -311,8 +311,8 @@ public class Consumer {
 	private void dataQueueOffer(Object[] data) {
 		int i = 0;
 		boolean flag = false;
-		long timeout = 50;
-		long printExeNum = (1000 / timeout) * 30;
+		long timeout = 1000;
+		long printExeNum = (1000 / timeout) * 10;
 
 		while (!flag) {
 
@@ -338,7 +338,7 @@ public class Consumer {
 	private Object[] dataQueuePoll() {
 		Object[] data = null;
 		try {
-			data = this.dataQueue.poll(200, TimeUnit.MILLISECONDS);
+			data = this.dataQueue.poll(1000, TimeUnit.MILLISECONDS);
 		} catch (InterruptedException e) {
 			LOG.error("dataQueueTake error", e);
 			Thread.currentThread().interrupt();

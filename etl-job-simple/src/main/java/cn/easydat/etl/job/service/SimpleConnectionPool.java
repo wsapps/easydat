@@ -33,18 +33,18 @@ public class SimpleConnectionPool {
 
 	// 创建新连接
 	private Connection createConnection(JobParameterJdbc jdbc) throws SQLException {
-		LOGGER.info("createConnection start, jdbcUrl:{},username:{},currentSize:{}", getJdbcUrlIP(jdbc), jdbc.getUsername(), currentSize.get());
+//		LOGGER.info("createConnection start, jdbcUrl:{},username:{},currentSize:{}", getJdbcUrlIP(jdbc), jdbc.getUsername(), currentSize.get());
 		Connection conn = DriverManager.getConnection(jdbc.getJdbcUrl(), jdbc.getUsername(), jdbc.getPassword());
 		conn.setClientInfo(CREATE_TIME, System.currentTimeMillis() + "");
 
-		LOGGER.info("createConnection end, jdbcUrl:{},username:{},currentSize:{}", getJdbcUrlIP(jdbc), jdbc.getUsername(), currentSize.get());
+//		LOGGER.info("createConnection end, jdbcUrl:{},username:{},currentSize:{}", getJdbcUrlIP(jdbc), jdbc.getUsername(), currentSize.get());
 		return conn;
 	}
 
 	// 获取连接
 	public Connection getConnection(JobParameterJdbc jdbc) throws SQLException {
 		BlockingQueue<Connection> poolQueue = getPoolQueue(jdbc);
-		LOGGER.info("getConnection start, jdbcUrl:{},username:{},currentSize:{},connPoolSize:{}", getJdbcUrlIP(jdbc), jdbc.getUsername(), currentSize.get(), poolQueue.size());
+//		LOGGER.info("getConnection start, jdbcUrl:{},username:{},currentSize:{},connPoolSize:{}", getJdbcUrlIP(jdbc), jdbc.getUsername(), currentSize.get(), poolQueue.size());
 		Connection conn = poolQueue.poll();
 
 		if (conn == null) {
